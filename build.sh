@@ -1,6 +1,6 @@
 
-readonly target='exe'
-readonly target_dir='output'
+export target='exe'
+export target_dir='output'
 
 mode='release'
 

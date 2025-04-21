@@ -1,7 +1,7 @@
 
 ## initial variable ##
-target := exe
-target_dir := output
+target ?= exe
+target_dir ?= output
 
 src_c := swTool.c swLog.c
 src_o := swTool.o swLog.o

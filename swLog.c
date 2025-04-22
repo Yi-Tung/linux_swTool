@@ -10,6 +10,8 @@
 
 #include "swLog.h"
 
+#define SWLOG_LOCK_FILE_NAME "./swLog.lock"
+
 
 static time_t g_log_time;
 
@@ -22,11 +24,34 @@ static int g_swLog_pr_switch = 0;
 
 static void _store_swLog(char *mMsg, va_list mAp) {
   if(!access(g_swLog_file_name, F_OK | W_OK)) {
-    int fd = open(g_swLog_file_name, O_WRONLY | O_APPEND | O_CLOEXEC | O_EXLOCK, S_IWUSR | S_IWGRP);
+    int lock_fd = open(SWLOG_LOCK_FILE_NAME, O_CREAT | O_RDWR, 0666);
+    if(lock_fd == -1) {
+      fprintf(stderr, "%s[%d]: Failed to open swLog_lock_file", __func__, __LINE__);
+      return;
+    }
+
+    struct flock lock;
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = 0;
+    lock.l_len = 0;
+    if(fcntl(lock_fd, F_SETLKW, &lock) == -1) {
+      fprintf(stderr, "%s[%d]: Failed to lock swLog_lock", __func__, __LINE__);
+      return;
+    }
+
+    int fd = open(g_swLog_file_name, O_WRONLY | O_APPEND | O_CLOEXEC, S_IWUSR | S_IWGRP);
     if(fd != -1) {
       vdprintf(fd, mMsg, mAp);
       close(fd);
     }
+
+    lock.l_type = F_UNLCK;
+    if(fcntl(lock_fd, F_SETLK, &lock) == -1) {
+      fprintf(stderr, "%s[%d]: Failed to unlock swLog_lock", __func__, __LINE__);
+    }
+
+    close(lock_fd);
   }
 }
 

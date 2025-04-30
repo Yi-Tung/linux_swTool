@@ -3,10 +3,11 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
+#include <stdatomic.h>
 
 #include "swLog.h"
 
@@ -15,11 +16,11 @@
 
 static time_t g_log_time;
 
-static int g_swLog_output_fd = STDOUT_FILENO;
+static _Atomic int g_swLog_output_fd = STDOUT_FILENO;
 static swLog_level_t g_log_level = SWLOG_LEVEL_HIDE;
 static char g_swLog_file_name[512] = "./swLog.log";
-static int g_swLog_store_switch = 0;
-static int g_swLog_pr_switch = 0;
+static _Atomic int g_swLog_store_switch = 0;
+static _Atomic int g_swLog_pr_switch = 0;
 
 
 static void _store_swLog(char *mMsg, va_list mAp) {
@@ -64,11 +65,11 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
     g_log_time = time(NULL);
     snprintf(buf, sizeof(buf), "[%s] %s\n", strtok(ctime(&g_log_time),"\n"), mMsg);
 
-    if(g_swLog_pr_switch) {
-      vdprintf(g_swLog_output_fd, buf, ap);
+    if(get_swLog_pr_switch()) {
+      vdprintf(get_swLog_output_fd(), buf, ap);
     }
 
-    if(g_swLog_store_switch) {
+    if(get_swLog_store_switch()) {
       _store_swLog(buf, ap);
     }
     va_end(ap);
@@ -106,29 +107,29 @@ char* get_swLog_file_name(void) {
 }
 
 void set_swLog_store_switch(int mSwitch) {
-  g_swLog_store_switch = (mSwitch>0?1:0);
+  atomic_store(&g_swLog_store_switch, mSwitch>0?1:0);
 }
 
 int get_swLog_store_switch(void) {
-  return g_swLog_store_switch;
+  return atomic_load(&g_swLog_store_switch);
 }
 
 void set_swLog_output_fd(int mFd) {
   if(fcntl(mFd, F_GETFD) != -1) {
-    g_swLog_output_fd = mFd;
+    atomic_store(&g_swLog_output_fd, mFd);
   }
 }
 
 int get_swLog_output_fd(void) {
-  return g_swLog_output_fd;
+  return atomic_load(&g_swLog_output_fd);
 }
 
 void set_swLog_pr_switch(int mSwitch) {
-  g_swLog_pr_switch = (mSwitch>0?1:0);
+  atomic_store(&g_swLog_pr_switch, mSwitch>0?1:0);
 }
 
 int get_swLog_pr_switch(void) {
-  return g_swLog_pr_switch;
+  return atomic_load(&g_swLog_pr_switch);
 }
 
 #endif

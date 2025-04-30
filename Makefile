@@ -7,7 +7,7 @@ src_c := swTool.c swLog.c
 src_o := swTool.o swLog.o
 
 GCC := cc
-CFLAG := -O2 -Werror
+CFLAG := -std=c11 -O2 -Werror
 
 ## include external files
 include macro.mk

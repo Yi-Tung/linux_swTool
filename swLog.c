@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <time.h>
+#include <pthread.h>
 #include <stdatomic.h>
 
 #include "swLog.h"
@@ -57,6 +58,8 @@ static void _store_swLog(char *mMsg, va_list mAp) {
 }
 
 void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
+  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
   if(g_log_level & mLevel) {
     char buf[512] = {0};
     va_list ap;
@@ -66,7 +69,9 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
     snprintf(buf, sizeof(buf), "[%s] %s\n", strtok(ctime(&g_log_time),"\n"), mMsg);
 
     if(get_swLog_pr_switch()) {
+      pthread_mutex_lock(&lock);
       vdprintf(get_swLog_output_fd(), buf, ap);
+      pthread_mutex_unlock(&lock);
     }
 
     if(get_swLog_store_switch()) {
@@ -77,6 +82,9 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
 }
 
 void set_swLog_level(swLog_level_t mLevel) {
+  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+  pthread_mutex_lock(&lock);
   switch(mLevel) {
     case SWLOG_LEVEL_HIDE:
     case SWLOG_LEVEL_ERROR:
@@ -87,6 +95,7 @@ void set_swLog_level(swLog_level_t mLevel) {
     default:
       break;
   }
+  pthread_mutex_unlock(&lock);
 }
 
 swLog_level_t get_swLog_level(void) {

@@ -15,8 +15,6 @@
 #define SWLOG_LOCK_FILE_NAME "./swLog.lock"
 
 
-static time_t g_log_time;
-
 static _Atomic int g_swLog_output_fd = STDOUT_FILENO;
 static swLog_level_t g_log_level = SWLOG_LEVEL_HIDE;
 static char g_swLog_file_name[512] = "./swLog.log";
@@ -59,14 +57,16 @@ static void _store_swLog(char *mMsg, va_list mAp) {
 
 void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
   static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+  static time_t log_time;
 
   if(g_log_level & mLevel) {
     char buf[512] = {0};
-    va_list ap;
+    va_list ap, ap_cp;
 
     va_start(ap, mMsg);
-    g_log_time = time(NULL);
-    snprintf(buf, sizeof(buf), "[%s] %s\n", strtok(ctime(&g_log_time),"\n"), mMsg);
+    va_copy(ap_cp, ap);
+    log_time = time(NULL);
+    snprintf(buf, sizeof(buf), "[%s] %s\n", strtok(ctime(&log_time),"\n"), mMsg);
 
     if(get_swLog_pr_switch()) {
       pthread_mutex_lock(&lock);
@@ -75,8 +75,10 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
     }
 
     if(get_swLog_store_switch()) {
-      _store_swLog(buf, ap);
+      _store_swLog(buf, ap_cp);
     }
+
+    va_end(ap_cp);
     va_end(ap);
   }
 }

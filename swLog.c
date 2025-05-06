@@ -22,7 +22,7 @@ static _Atomic int g_swLog_store_switch = 0;
 static _Atomic int g_swLog_pr_switch = 0;
 
 
-static void _store_swLog(char *mMsg, va_list mAp) {
+static void _store_swLog(char *mMsg) {
   if(!access(g_swLog_file_name, F_OK | W_OK)) {
     int lock_fd = open(SWLOG_LOCK_FILE_NAME, O_CREAT | O_RDWR, 0666);
     if(lock_fd == -1) {
@@ -37,12 +37,13 @@ static void _store_swLog(char *mMsg, va_list mAp) {
     lock.l_len = 0;
     if(fcntl(lock_fd, F_SETLKW, &lock) == -1) {
       fprintf(stderr, "%s[%d]: Failed to lock swLog_lock", __func__, __LINE__);
+      close(lock_fd);
       return;
     }
 
     int fd = open(g_swLog_file_name, O_WRONLY | O_APPEND | O_CLOEXEC, S_IWUSR | S_IWGRP);
     if(fd != -1) {
-      vdprintf(fd, mMsg, mAp);
+      dprintf(fd, "%s", mMsg);
       close(fd);
     }
 
@@ -57,29 +58,40 @@ static void _store_swLog(char *mMsg, va_list mAp) {
 
 void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
   static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-  static time_t log_time;
+  static struct tm log_time_info;
 
   if(g_log_level & mLevel) {
-    char buf[512] = {0};
-    va_list ap, ap_cp;
+    time_t log_time = time(NULL);
+    char msg_buf[256] = {0};
+    char log_buf[512] = {0};
+    va_list ap;
 
     va_start(ap, mMsg);
-    va_copy(ap_cp, ap);
-    log_time = time(NULL);
-    snprintf(buf, sizeof(buf), "[%s] %s\n", strtok(ctime(&log_time),"\n"), mMsg);
+    if(localtime_r(&log_time, &log_time_info) == NULL) {
+      fprintf(stderr, "%s[%d]: Failed to translate local time", __func__, __LINE__);
+      va_end(ap);
+      return;
+    }
+    vsnprintf(msg_buf, sizeof(msg_buf), mMsg, ap);
+    snprintf(log_buf, sizeof(log_buf), "[%04d-%02d-%02d %02d:%02d:%02d] %s\n"
+      , log_time_info.tm_year + 1900
+      , log_time_info.tm_mon  + 1
+      , log_time_info.tm_mday
+      , log_time_info.tm_hour
+      , log_time_info.tm_min
+      , log_time_info.tm_sec
+      , msg_buf);
+    va_end(ap);
 
-    if(get_swLog_pr_switch()) {
+    if(atomic_load(&g_swLog_pr_switch)) {
       pthread_mutex_lock(&lock);
-      vdprintf(get_swLog_output_fd(), buf, ap);
+      dprintf(get_swLog_output_fd(), "%s", log_buf);
       pthread_mutex_unlock(&lock);
     }
 
-    if(get_swLog_store_switch()) {
-      _store_swLog(buf, ap_cp);
+    if(atomic_load(&g_swLog_store_switch)) {
+      _store_swLog(log_buf);
     }
-
-    va_end(ap_cp);
-    va_end(ap);
   }
 }
 

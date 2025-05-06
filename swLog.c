@@ -60,10 +60,10 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
   static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
   static struct tm log_time_info;
 
-  if(g_log_level & mLevel) {
+  if( (g_log_level & mLevel) && (mMsg != NULL) ) {
     time_t log_time = time(NULL);
-    char msg_buf[256] = {0};
-    char log_buf[512] = {0};
+    char msg_buf[2048] = {0};
+    char log_buf[4096] = {0};
     va_list ap;
 
     va_start(ap, mMsg);
@@ -117,10 +117,11 @@ swLog_level_t get_swLog_level(void) {
 }
 
 void set_swLog_file_name(char *mName, size_t mSize) {
+  static const size_t len = sizeof(g_swLog_file_name);
+
   if(mName != NULL && mSize > 1) {
     if(!access(mName, F_OK | W_OK)) {
-      strncpy(g_swLog_file_name, mName,
-        sizeof(g_swLog_file_name)<=mSize?sizeof(g_swLog_file_name):mSize);
+      snprintf(g_swLog_file_name, len, "%s", mName);
     }
   }
 }

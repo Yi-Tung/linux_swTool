@@ -34,6 +34,8 @@ int main(int argc, char *argv[]) {
 
 #if log_switch
 
+  char buf[512] = {0};
+
   umask(0);
   if(access(SWTOOL_LOG_FILE_NAME, F_OK) == -1) {
     int fd = open(SWTOOL_LOG_FILE_NAME, O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
@@ -56,8 +58,9 @@ int main(int argc, char *argv[]) {
 
   pr_swLog(SWLOG_LEVEL_INFO, "%s: Current swLog level is %d", tool_name, get_swLog_level());
 
-  pr_swLog(SWLOG_LEVEL_INFO, "%s: Log File Name is %s", tool_name, get_swLog_file_name());
-  pr_swLog(SWLOG_LEVEL_HIDE, "%s: The message is hidden", tool_name, get_swLog_file_name());
+  get_swLog_file_name(buf, sizeof(buf));
+  pr_swLog(SWLOG_LEVEL_INFO, "%s: Log File Name is %s", tool_name, buf);
+  pr_swLog(SWLOG_LEVEL_HIDE, "%s: The message is hidden", tool_name, buf);
 #endif
 
 #endif

@@ -15,7 +15,7 @@ void set_swLog_level(swLog_level_t);
 swLog_level_t get_swLog_level(void);
 
 void set_swLog_file_name(char*, size_t);
-char* get_swLog_file_name(void);
+int get_swLog_file_name(char*, size_t);
 
 void set_swLog_store_switch(int);
 int get_swLog_store_switch(void);

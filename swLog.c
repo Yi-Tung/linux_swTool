@@ -15,15 +15,25 @@
 #define SWLOG_LOCK_FILE_NAME "./swLog.lock"
 
 
-static _Atomic int g_swLog_output_fd = STDOUT_FILENO;
+static pthread_mutex_t g_log_level_lock = PTHREAD_MUTEX_INITIALIZER;
 static swLog_level_t g_log_level = SWLOG_LEVEL_HIDE;
+
+static pthread_mutex_t g_swLog_file_lock = PTHREAD_MUTEX_INITIALIZER;
 static char g_swLog_file_name[512] = "./swLog.log";
 static _Atomic int g_swLog_store_switch = 0;
+
+static _Atomic int g_swLog_output_fd = STDOUT_FILENO;
 static _Atomic int g_swLog_pr_switch = 0;
 
 
 static void _store_swLog(char *mMsg) {
-  if(!access(g_swLog_file_name, F_OK | W_OK)) {
+  char log_file_name[512] = {0};
+
+  pthread_mutex_lock(&g_swLog_file_lock);
+  snprintf(log_file_name, sizeof(log_file_name), "%s", g_swLog_file_name);
+  pthread_mutex_unlock(&g_swLog_file_lock);
+
+  if(!access(log_file_name, F_OK | W_OK)) {
     int lock_fd = open(SWLOG_LOCK_FILE_NAME, O_CREAT | O_RDWR, 0666);
     if(lock_fd == -1) {
       fprintf(stderr, "%s[%d]: Failed to open swLog_lock_file", __func__, __LINE__);
@@ -41,7 +51,7 @@ static void _store_swLog(char *mMsg) {
       return;
     }
 
-    int fd = open(g_swLog_file_name, O_WRONLY | O_APPEND | O_CLOEXEC, S_IWUSR | S_IWGRP);
+    int fd = open(log_file_name, O_WRONLY | O_APPEND | O_CLOEXEC, S_IWUSR | S_IWGRP);
     if(fd != -1) {
       dprintf(fd, "%s", mMsg);
       close(fd);
@@ -58,10 +68,15 @@ static void _store_swLog(char *mMsg) {
 
 void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
   static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-  static struct tm log_time_info;
+  swLog_level_t log_level;
 
-  if( (g_log_level & mLevel) && (mMsg != NULL) ) {
+  pthread_mutex_lock(&g_log_level_lock);
+  log_level = g_log_level;
+  pthread_mutex_unlock(&g_log_level_lock);
+
+  if( (log_level & mLevel) && (mMsg != NULL) ) {
     time_t log_time = time(NULL);
+    struct tm log_time_info;
     char msg_buf[2048] = {0};
     char log_buf[4096] = {0};
     va_list ap;
@@ -85,7 +100,7 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
 
     if(atomic_load(&g_swLog_pr_switch)) {
       pthread_mutex_lock(&lock);
-      dprintf(get_swLog_output_fd(), "%s", log_buf);
+      dprintf(atomic_load(&g_swLog_output_fd), "%s", log_buf);
       pthread_mutex_unlock(&lock);
     }
 
@@ -96,9 +111,7 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
 }
 
 void set_swLog_level(swLog_level_t mLevel) {
-  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-
-  pthread_mutex_lock(&lock);
+  pthread_mutex_lock(&g_log_level_lock);
   switch(mLevel) {
     case SWLOG_LEVEL_HIDE:
     case SWLOG_LEVEL_ERROR:
@@ -109,25 +122,44 @@ void set_swLog_level(swLog_level_t mLevel) {
     default:
       break;
   }
-  pthread_mutex_unlock(&lock);
+  pthread_mutex_unlock(&g_log_level_lock);
 }
 
 swLog_level_t get_swLog_level(void) {
-  return g_log_level;
+  swLog_level_t log_level;
+
+  pthread_mutex_lock(&g_log_level_lock);
+  log_level = g_log_level;
+  pthread_mutex_unlock(&g_log_level_lock);
+
+  return log_level;
 }
 
 void set_swLog_file_name(char *mName, size_t mSize) {
-  static const size_t len = sizeof(g_swLog_file_name);
+  pthread_mutex_lock(&g_swLog_file_lock);
 
+  static const size_t len = sizeof(g_swLog_file_name);
   if(mName != NULL && mSize > 1) {
     if(!access(mName, F_OK | W_OK)) {
       snprintf(g_swLog_file_name, len, "%s", mName);
     }
   }
+
+  pthread_mutex_unlock(&g_swLog_file_lock);
 }
 
-char* get_swLog_file_name(void) {
-  return g_swLog_file_name;
+int get_swLog_file_name(char *mName, size_t mSize) {
+  pthread_mutex_lock(&g_swLog_file_lock);
+
+  size_t len = strlen(g_swLog_file_name) + 1;
+  int ret = 0;
+  if(mSize > len) {
+    snprintf(mName, mSize, "%s", g_swLog_file_name);
+    ret = 1;
+  }
+
+  pthread_mutex_unlock(&g_swLog_file_lock);
+  return ret;
 }
 
 void set_swLog_store_switch(int mSwitch) {

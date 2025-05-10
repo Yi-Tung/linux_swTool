@@ -1,6 +1,3 @@
-#ifndef __C_SWLOG__
-#define __C_SWLOG__
-
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -26,7 +23,7 @@ static _Atomic int g_swLog_output_fd = STDOUT_FILENO;
 static _Atomic int g_swLog_pr_switch = 0;
 
 
-static void _store_swLog(char *mMsg) {
+static void _store_swLog(const char *mMsg) {
   char log_file_name[512] = {0};
 
   pthread_mutex_lock(&g_swLog_file_lock);
@@ -34,7 +31,7 @@ static void _store_swLog(char *mMsg) {
   pthread_mutex_unlock(&g_swLog_file_lock);
 
   if(!access(log_file_name, F_OK | W_OK)) {
-    int lock_fd = open(SWLOG_LOCK_FILE_NAME, O_CREAT | O_RDWR, 0666);
+    int lock_fd = open(SWLOG_LOCK_FILE_NAME, O_CREAT | O_RDWR | O_CLOEXEC, S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP);
     if(lock_fd == -1) {
       fprintf(stderr, "%s[%d]: Failed to open swLog_lock_file", __func__, __LINE__);
       return;
@@ -75,6 +72,7 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
   pthread_mutex_unlock(&g_log_level_lock);
 
   if( (log_level & mLevel) && (mMsg != NULL) ) {
+    int output_fd = atomic_load(&g_swLog_output_fd);
     time_t log_time = time(NULL);
     struct tm log_time_info;
     char msg_buf[2048] = {0};
@@ -100,7 +98,7 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
 
     if(atomic_load(&g_swLog_pr_switch)) {
       pthread_mutex_lock(&lock);
-      dprintf(atomic_load(&g_swLog_output_fd), "%s", log_buf);
+      write(output_fd, log_buf, strlen(log_buf));
       pthread_mutex_unlock(&lock);
     }
 
@@ -111,18 +109,18 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
 }
 
 void set_swLog_level(swLog_level_t mLevel) {
-  pthread_mutex_lock(&g_log_level_lock);
   switch(mLevel) {
     case SWLOG_LEVEL_HIDE:
     case SWLOG_LEVEL_ERROR:
     case SWLOG_LEVEL_WARNING:
     case SWLOG_LEVEL_INFO:
+      pthread_mutex_lock(&g_log_level_lock);
       g_log_level = mLevel;
+      pthread_mutex_unlock(&g_log_level_lock);
       break;
     default:
       break;
   }
-  pthread_mutex_unlock(&g_log_level_lock);
 }
 
 swLog_level_t get_swLog_level(void) {
@@ -188,4 +186,3 @@ int get_swLog_pr_switch(void) {
   return atomic_load(&g_swLog_pr_switch);
 }
 
-#endif

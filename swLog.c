@@ -24,6 +24,7 @@ static _Atomic int g_swLog_pr_switch = 0;
 
 
 static void _store_swLog(const char *mMsg) {
+  static pthread_mutex_t inner_lock = PTHREAD_MUTEX_INITIALIZER;
   char log_file_name[512] = {0};
 
   pthread_mutex_lock(&g_swLog_file_lock);
@@ -37,25 +38,27 @@ static void _store_swLog(const char *mMsg) {
       return;
     }
 
-    struct flock lock;
-    lock.l_type = F_WRLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_start = 0;
-    lock.l_len = 0;
-    if(fcntl(lock_fd, F_SETLKW, &lock) == -1) {
+    struct flock outer_lock;
+    outer_lock.l_type = F_WRLCK;
+    outer_lock.l_whence = SEEK_SET;
+    outer_lock.l_start = 0;
+    outer_lock.l_len = 0;
+    if(fcntl(lock_fd, F_SETLKW, &outer_lock) == -1) {
       fprintf(stderr, "%s[%d]: Failed to lock swLog_lock", __func__, __LINE__);
       close(lock_fd);
       return;
     }
 
+    pthread_mutex_lock(&inner_lock);
     int fd = open(log_file_name, O_WRONLY | O_APPEND | O_CLOEXEC, S_IWUSR | S_IWGRP);
     if(fd != -1) {
       dprintf(fd, "%s", mMsg);
       close(fd);
     }
+    pthread_mutex_unlock(&inner_lock);
 
-    lock.l_type = F_UNLCK;
-    if(fcntl(lock_fd, F_SETLK, &lock) == -1) {
+    outer_lock.l_type = F_UNLCK;
+    if(fcntl(lock_fd, F_SETLK, &outer_lock) == -1) {
       fprintf(stderr, "%s[%d]: Failed to unlock swLog_lock", __func__, __LINE__);
     }
 

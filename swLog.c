@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -6,17 +7,17 @@
 #include <time.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <libgen.h>
 
 #include "swLog.h"
-
-#define SWLOG_LOCK_FILE_NAME "./swLog.lock"
 
 
 static pthread_rwlock_t g_log_level_lock = PTHREAD_RWLOCK_INITIALIZER;
 static swLog_level_t g_log_level = SWLOG_LEVEL_HIDE;
 
 static pthread_rwlock_t g_swLog_file_name_lock = PTHREAD_RWLOCK_INITIALIZER;
-static char g_swLog_file_name[512] = "./swLog.log";
+static char g_swLog_lock_file_name[512] = "./.swLog.log.lock";
+static char g_swLog_log_file_name[512] = "./swLog.log";
 static _Atomic int g_swLog_store_switch = 0;
 
 static _Atomic int g_swLog_output_fd = STDOUT_FILENO;
@@ -25,14 +26,16 @@ static _Atomic int g_swLog_pr_switch = 0;
 
 static void _store_swLog(const char *mMsg) {
   static pthread_mutex_t inner_lock = PTHREAD_MUTEX_INITIALIZER;
+  char lock_file_name[512] = {0};
   char log_file_name[512] = {0};
 
   pthread_rwlock_rdlock(&g_swLog_file_name_lock);
-  snprintf(log_file_name, sizeof(log_file_name), "%s", g_swLog_file_name);
+  snprintf(lock_file_name, sizeof(lock_file_name), "%s", g_swLog_lock_file_name);
+  snprintf(log_file_name, sizeof(log_file_name), "%s", g_swLog_log_file_name);
   pthread_rwlock_unlock(&g_swLog_file_name_lock);
 
   if(!access(log_file_name, F_OK | W_OK)) {
-    int lock_fd = open(SWLOG_LOCK_FILE_NAME, O_CREAT | O_RDWR | O_CLOEXEC, S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP);
+    int lock_fd = open(lock_file_name, O_CREAT | O_RDWR | O_CLOEXEC, S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP);
     if(lock_fd == -1) {
       fprintf(stderr, "%s[%d]: Failed to open swLog_lock_file", __func__, __LINE__);
       return;
@@ -140,10 +143,22 @@ swLog_level_t get_swLog_level(void) {
 void set_swLog_file_name(char *mName, size_t mSize) {
   pthread_rwlock_wrlock(&g_swLog_file_name_lock);
 
-  static const size_t len = sizeof(g_swLog_file_name);
+  static const size_t lock_len = sizeof(g_swLog_lock_file_name);
+  static const size_t log_len = sizeof(g_swLog_log_file_name);
+  char *cp_mName, *dir_name, *base_name;
+
   if(mName != NULL && mSize > 1) {
     if(!access(mName, F_OK | W_OK)) {
-      snprintf(g_swLog_file_name, len, "%s", mName);
+      cp_mName = strdup(mName);
+      dir_name = dirname(cp_mName);
+      free(cp_mName);
+
+      cp_mName = strdup(mName);
+      base_name = basename(cp_mName);
+      free(cp_mName);
+
+      snprintf(g_swLog_lock_file_name, lock_len, "%s/.%s.lock", dir_name, base_name);
+      snprintf(g_swLog_log_file_name, log_len, "%s", mName);
     }
   }
 
@@ -153,10 +168,10 @@ void set_swLog_file_name(char *mName, size_t mSize) {
 int get_swLog_file_name(char *mName, size_t mSize) {
   pthread_rwlock_rdlock(&g_swLog_file_name_lock);
 
-  size_t len = strlen(g_swLog_file_name) + 1;
+  size_t len = strlen(g_swLog_log_file_name) + 1;
   int ret = 0;
   if(mSize > len) {
-    snprintf(mName, mSize, "%s", g_swLog_file_name);
+    snprintf(mName, mSize, "%s", g_swLog_log_file_name);
     ret = 1;
   }
 

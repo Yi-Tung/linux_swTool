@@ -145,20 +145,24 @@ void set_swLog_file_name(char *mName, size_t mSize) {
 
   static const size_t lock_len = sizeof(g_swLog_lock_file_name);
   static const size_t log_len = sizeof(g_swLog_log_file_name);
-  char *cp_mName, *dir_name, *base_name;
+  char *cp_mName, *dir_name, *base_name, *tmp;
 
   if(mName != NULL && mSize > 1) {
     if(!access(mName, F_OK | W_OK)) {
       cp_mName = strdup(mName);
-      dir_name = dirname(cp_mName);
+      tmp = dirname(cp_mName);
+      dir_name = strdup(tmp);
       free(cp_mName);
 
       cp_mName = strdup(mName);
-      base_name = basename(cp_mName);
+      tmp = basename(cp_mName);
+      base_name = strdup(tmp);
       free(cp_mName);
 
       snprintf(g_swLog_lock_file_name, lock_len, "%s/.%s.lock", dir_name, base_name);
       snprintf(g_swLog_log_file_name, log_len, "%s", mName);
+      free(dir_name);
+      free(base_name);
     }
   }
 

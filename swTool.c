@@ -22,11 +22,16 @@ void show_usage(const char *tool_name) {
 
 int main(int argc, char *argv[]) {
 
-  const char *all_opt = "hvp:";
-  const char *tool_name = basename(argv[0]);
+  char *cp_argv0 = strdup(argv[0]);
+  char *cp_basename = basename(cp_argv0);
+  char *tool_name = strdup(cp_basename);
 
+  const char *all_opt = "hvp:";
   int opt_code;
 
+
+  free(cp_argv0);
+  cp_argv0 = NULL;
 
 #ifdef log_switch
   printf("[%s] mode=%s\n", tool_name, mode);
@@ -91,5 +96,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  free(tool_name);
   return 0;
 }

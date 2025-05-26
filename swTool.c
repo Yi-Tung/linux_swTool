@@ -51,7 +51,9 @@ int main(int argc, char *argv[]) {
 
   set_swLog_level(SWLOG_LEVEL_HIDE);
   set_swLog_output_fd(STDOUT_FILENO);
+  enable_swLog_auto_lock_file_path(0);
   set_swLog_file_name(SWTOOL_LOG_FILE_NAME, sizeof(SWTOOL_LOG_FILE_NAME));
+  set_swLog_lock_file_path(".", sizeof("."));
   set_swLog_store_switch(1);
   set_swLog_pr_switch(1);
 
@@ -66,6 +68,9 @@ int main(int argc, char *argv[]) {
   get_swLog_file_name(buf, sizeof(buf));
   pr_swLog(SWLOG_LEVEL_INFO, "%s: Log File Name is %s", tool_name, buf);
   pr_swLog(SWLOG_LEVEL_HIDE, "%s: The message is hidden", tool_name, buf);
+
+  get_swLog_lock_file_path(buf, sizeof(buf));
+  pr_swLog(SWLOG_LEVEL_INFO, "%s: Lock File Path is %s", tool_name, buf);
 #endif
 
 #endif

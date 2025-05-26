@@ -26,5 +26,8 @@ int get_swLog_output_fd(void);
 void set_swLog_pr_switch(int);
 int get_swLog_pr_switch(void);
 
+void enable_swLog_auto_lock_file_path(int);
+void set_swLog_lock_file_path(char*, size_t);
+int get_swLog_lock_file_path(char*, size_t);
 
 #endif

@@ -18,7 +18,7 @@ case "$mode" in
     ;;
   'release')
     make
-    rm *.o >/dev/null 2>&1
+    rm $(find . -name '*.o') >/dev/null 2>&1
     ;;
   *)
     echo "$0: invalid option '$1'"

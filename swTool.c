@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 
 #include "swLog.h"
+#include "swDaemon.h"
 
 #define SWTOOL_VERSION "Version 1.0"
 #define SWTOOL_LOG_FILE_NAME "./swTool.log"
@@ -17,7 +18,8 @@ void show_usage(const char *tool_name) {
          , "\noption:\n"
            "\t-h\tShow this message\n"
            "\t-v\tShow this tool version\n"
-           "\t-p\tShow the parameter of this option\n");
+           "\t-p\tShow the parameter of this option\n"
+           "\t-d\tExecute the daemon to do something\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -25,8 +27,9 @@ int main(int argc, char *argv[]) {
   char *cp_argv0 = strdup(argv[0]);
   char *cp_basename = basename(cp_argv0);
   char *tool_name = strdup(cp_basename);
+  char *tool_pwd = getcwd(NULL, 0);
 
-  const char *all_opt = "hvp:";
+  const char *all_opt = "hvdp:";
   int opt_code;
 
 
@@ -88,6 +91,18 @@ int main(int argc, char *argv[]) {
       case 'p':
         printf("parameter: %s\n", optarg);
         break;
+      case 'd':
+        be_swDaemon();
+        chdir(tool_pwd);
+        for(int index=1; index<=60; index++) {
+#ifdef log_switch
+#if log_switch
+          pr_swLog(SWLOG_LEVEL_INFO, "%s: write %dth log by the daemon", tool_name, index);
+#endif
+#endif
+          sleep(1);
+        }
+        break;
       case '?':
         if(optopt=='p') {
           fprintf(stderr, "%s: the option 'p' need to a parameter\n", tool_name);
@@ -102,5 +117,6 @@ int main(int argc, char *argv[]) {
   }
 
   free(tool_name);
+  free(tool_pwd);
   return 0;
 }

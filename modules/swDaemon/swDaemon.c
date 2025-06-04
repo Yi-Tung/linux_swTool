@@ -11,8 +11,8 @@
 #define SWDAEMON_PID_FILE_NAME "/tmp/swDaemon.pid"
 
 
-static _Atomic int g_pid_file_switch = 1;
-static int g_pid_fd = -1;
+static _Atomic int g_swDaemon_pid_file_switch = 1;
+static int g_swDaemon_pid_fd = -1;
 
 
 static int _write_swDaemon_pid_file(const char *mName) {
@@ -25,21 +25,21 @@ static int _write_swDaemon_pid_file(const char *mName) {
   lock.l_start = 0;
   lock.l_len = 0;
 
-  g_pid_fd = open(mName, O_CREAT | O_RDWR | O_TRUNC | O_CLOEXEC, S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP);
-  if(g_pid_fd == -1) {
+  g_swDaemon_pid_fd = open(mName, O_CREAT | O_RDWR | O_TRUNC | O_CLOEXEC, S_IWUSR | S_IRUSR | S_IWGRP | S_IRGRP);
+  if(g_swDaemon_pid_fd == -1) {
     return -1;
   }
-  else if(fcntl(g_pid_fd, F_SETLK, &lock) == -1) {
-    close(g_pid_fd);
-    g_pid_fd = -1;
+  else if(fcntl(g_swDaemon_pid_fd, F_SETLK, &lock) == -1) {
+    close(g_swDaemon_pid_fd);
+    g_swDaemon_pid_fd = -1;
     return -1;
   }
 
   snprintf(pid_num, sizeof(pid_num), "%d\n", getpid());
 
-  if(write(g_pid_fd, pid_num, strlen(pid_num)) == -1) {
-    close(g_pid_fd);
-    g_pid_fd = -1;
+  if(write(g_swDaemon_pid_fd, pid_num, strlen(pid_num)) == -1) {
+    close(g_swDaemon_pid_fd);
+    g_swDaemon_pid_fd = -1;
     return -1;
   }
 
@@ -47,8 +47,8 @@ static int _write_swDaemon_pid_file(const char *mName) {
 }
 
 static void _swDaemon_cleanup(void) {
-  if(g_pid_fd != -1) {
-    close(g_pid_fd);
+  if(g_swDaemon_pid_fd != -1) {
+    close(g_swDaemon_pid_fd);
   }
   unlink(SWDAEMON_PID_FILE_NAME);
 }
@@ -81,7 +81,7 @@ int be_swDaemon(void) {
   chdir("/");
   umask(0);
 
-  if(atomic_load(&g_pid_file_switch)) {
+  if(atomic_load(&g_swDaemon_pid_file_switch)) {
     if(_write_swDaemon_pid_file(SWDAEMON_PID_FILE_NAME) == -1) {
       return -1;
     }
@@ -109,5 +109,5 @@ int be_swDaemon(void) {
 }
 
 void enable_swDaemon_pid_file(int mSwitch) {
-  atomic_store(&g_pid_file_switch, mSwitch>0?1:0);
+  atomic_store(&g_swDaemon_pid_file_switch, mSwitch>0?1:0);
 }

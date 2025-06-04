@@ -13,8 +13,8 @@
 #include "swLog.h"
 
 
-static pthread_rwlock_t g_log_level_lock = PTHREAD_RWLOCK_INITIALIZER;
-static swLog_level_t g_log_level = SWLOG_LEVEL_HIDE;
+static pthread_rwlock_t g_swLog_log_level_lock = PTHREAD_RWLOCK_INITIALIZER;
+static swLog_level_t g_swLog_log_level = SWLOG_LEVEL_HIDE;
 
 static pthread_rwlock_t g_swLog_file_name_lock = PTHREAD_RWLOCK_INITIALIZER;
 static char g_swLog_lock_file_path[512] = ".";
@@ -76,9 +76,9 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
   static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
   swLog_level_t log_level;
 
-  pthread_rwlock_rdlock(&g_log_level_lock);
-  log_level = g_log_level;
-  pthread_rwlock_unlock(&g_log_level_lock);
+  pthread_rwlock_rdlock(&g_swLog_log_level_lock);
+  log_level = g_swLog_log_level;
+  pthread_rwlock_unlock(&g_swLog_log_level_lock);
 
   if( (log_level & mLevel) && (mMsg != NULL) ) {
     int output_fd = atomic_load(&g_swLog_output_fd);
@@ -124,9 +124,9 @@ void set_swLog_level(swLog_level_t mLevel) {
     case SWLOG_LEVEL_ERROR:
     case SWLOG_LEVEL_WARNING:
     case SWLOG_LEVEL_INFO:
-      pthread_rwlock_wrlock(&g_log_level_lock);
-      g_log_level = mLevel;
-      pthread_rwlock_unlock(&g_log_level_lock);
+      pthread_rwlock_wrlock(&g_swLog_log_level_lock);
+      g_swLog_log_level = mLevel;
+      pthread_rwlock_unlock(&g_swLog_log_level_lock);
       break;
     default:
       break;
@@ -136,9 +136,9 @@ void set_swLog_level(swLog_level_t mLevel) {
 swLog_level_t get_swLog_level(void) {
   swLog_level_t log_level;
 
-  pthread_rwlock_rdlock(&g_log_level_lock);
-  log_level = g_log_level;
-  pthread_rwlock_unlock(&g_log_level_lock);
+  pthread_rwlock_rdlock(&g_swLog_log_level_lock);
+  log_level = g_swLog_log_level;
+  pthread_rwlock_unlock(&g_swLog_log_level_lock);
 
   return log_level;
 }

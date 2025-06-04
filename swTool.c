@@ -92,7 +92,18 @@ int main(int argc, char *argv[]) {
         printf("parameter: %s\n", optarg);
         break;
       case 'd':
-        be_swDaemon();
+        enable_swDaemon_pid_file(1);
+        set_swDaemon_pid_file_path("/tmp", sizeof("/tmp"));
+#ifdef log_switch
+#if log_switch
+        get_swDaemon_pid_file_path(buf, sizeof(buf));
+        pr_swLog(SWLOG_LEVEL_INFO, "%s: PID File Path is %s", tool_name, buf);
+#endif
+#endif
+        if(be_swDaemon(tool_name) == -1) {
+          printf("[%s]: Daemon is running or some errors have occurred... \n", tool_name);
+          break;
+        }
         chdir(tool_pwd);
         for(int index=1; index<=60; index++) {
 #ifdef log_switch

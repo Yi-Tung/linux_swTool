@@ -3,4 +3,6 @@
 
 int be_swDaemon(void);
 
+void enable_swDaemon_pid_file(int);
+
 #endif

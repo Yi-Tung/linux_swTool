@@ -3,14 +3,17 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
 
 #include "swDaemon.h"
 
-#define SWDAEMON_PID_FILE_NAME "/tmp/swDaemon.pid"
 
+static pthread_rwlock_t g_swDaemon_pid_file_lock = PTHREAD_RWLOCK_INITIALIZER;
 
+static char g_swDaemon_pid_file_name[512] = "swDaemon.pid";
+static char g_swDaemon_pid_file_path[512] = ".";
 static _Atomic int g_swDaemon_pid_file_switch = 1;
 static int g_swDaemon_pid_fd = -1;
 
@@ -47,13 +50,16 @@ static int _write_swDaemon_pid_file(const char *mName) {
 }
 
 static void _swDaemon_cleanup(void) {
+  char pid_file[512];
+
   if(g_swDaemon_pid_fd != -1) {
     close(g_swDaemon_pid_fd);
   }
-  unlink(SWDAEMON_PID_FILE_NAME);
+  snprintf(pid_file, sizeof(pid_file), "%s/%s", g_swDaemon_pid_file_path, g_swDaemon_pid_file_name);
+  unlink(pid_file);
 }
 
-int be_swDaemon(void) {
+int be_swDaemon(const char *mName) {
   pid_t pid;
   int fd;
 
@@ -82,7 +88,14 @@ int be_swDaemon(void) {
   umask(0);
 
   if(atomic_load(&g_swDaemon_pid_file_switch)) {
-    if(_write_swDaemon_pid_file(SWDAEMON_PID_FILE_NAME) == -1) {
+    char pid_file[512] = {0};
+
+    pthread_rwlock_wrlock(&g_swDaemon_pid_file_lock);
+    snprintf(g_swDaemon_pid_file_name, sizeof(g_swDaemon_pid_file_name), "%s.pid", mName);
+    snprintf(pid_file, sizeof(pid_file), "%s/%s", g_swDaemon_pid_file_path, g_swDaemon_pid_file_name);
+    pthread_rwlock_unlock(&g_swDaemon_pid_file_lock);
+
+    if(_write_swDaemon_pid_file(pid_file) == -1) {
       return -1;
     }
   }
@@ -110,4 +123,49 @@ int be_swDaemon(void) {
 
 void enable_swDaemon_pid_file(int mSwitch) {
   atomic_store(&g_swDaemon_pid_file_switch, mSwitch>0?1:0);
+}
+
+int get_swDaemon_pid_file_path(char *mPath, size_t mSize) {
+  pthread_rwlock_rdlock(&g_swDaemon_pid_file_lock);
+
+  size_t len = strlen(g_swDaemon_pid_file_path) + 1;
+  int ret = -1;
+
+  if(mSize > len) {
+    snprintf(mPath, mSize, "%s", g_swDaemon_pid_file_path);
+    ret = 0;
+  }
+
+  pthread_rwlock_unlock(&g_swDaemon_pid_file_lock);
+  return ret;
+}
+
+int set_swDaemon_pid_file_path(const char *mPath, size_t mSize) {
+  if( (mPath == NULL) || (mSize <= 0) || (mSize >= sizeof(g_swDaemon_pid_file_path)) ) {
+    return -1;
+  }
+
+  char *cp_mPath = strdup(mPath);
+  int last_index = strlen(cp_mPath) - 1;
+  int fd = -1;
+
+  if(cp_mPath[last_index] == '/') {
+    cp_mPath[last_index] = '\0';
+  }
+
+  fd = open(cp_mPath, O_CLOEXEC | O_DIRECTORY, S_IXUSR | S_IWUSR | S_IXGRP | S_IWGRP);
+  if(fd != -1) {
+    close(fd);
+  }
+  else {
+    free(cp_mPath);
+    return -1;
+  }
+
+  pthread_rwlock_wrlock(&g_swDaemon_pid_file_lock);
+  snprintf(g_swDaemon_pid_file_path, sizeof(g_swDaemon_pid_file_path), "%s", cp_mPath);
+  pthread_rwlock_unlock(&g_swDaemon_pid_file_lock);
+
+  free(cp_mPath);
+  return 0;
 }

@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
@@ -168,4 +170,47 @@ int set_swDaemon_pid_file_path(const char *mPath, size_t mSize) {
 
   free(cp_mPath);
   return 0;
+}
+
+int swDaemon_is_alive(const char *mName) {
+  char pid_file[512];
+  char pid_buf[32];
+  FILE *fp = NULL;
+  pid_t pid;
+
+  pthread_rwlock_rdlock(&g_swDaemon_pid_file_lock);
+  snprintf(pid_file, sizeof(pid_file), "%s/%s.pid", g_swDaemon_pid_file_path, mName);
+  pthread_rwlock_unlock(&g_swDaemon_pid_file_lock);
+
+  fp = fopen(pid_file, "r");
+  if(fp == NULL) {
+    return 0;
+  }
+
+  if(fgets(pid_buf, sizeof(pid_buf), fp) == NULL) {
+    fclose(fp);
+    return -1;
+  }
+  else {
+    fclose(fp);
+  }
+
+  pid = strtol(pid_buf, NULL, 10);
+  if(pid <= 1) {
+    return -1;
+  }
+
+  if(kill(pid, 0) == -1) {
+    if(errno == EPERM) {
+      return 1;
+    }
+    else if(errno == ESRCH) {
+      return 0;
+    }
+    else {
+      return -1;
+    }
+  }
+
+  return 1;
 }

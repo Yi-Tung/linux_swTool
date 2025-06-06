@@ -8,4 +8,6 @@ void enable_swDaemon_pid_file(int);
 int get_swDaemon_pid_file_path(char*, size_t);
 int set_swDaemon_pid_file_path(const char*, size_t);
 
+int swDaemon_is_alive(const char*);
+
 #endif

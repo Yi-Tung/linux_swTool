@@ -32,6 +32,9 @@ int main(int argc, char *argv[]) {
   const char *all_opt = "hvdp:";
   int opt_code;
 
+  pid_t pid;
+  int status;
+
 
   free(cp_argv0);
   cp_argv0 = NULL;
@@ -100,18 +103,37 @@ int main(int argc, char *argv[]) {
         pr_swLog(SWLOG_LEVEL_INFO, "%s: PID File Path is %s", tool_name, buf);
 #endif
 #endif
-        if(be_swDaemon(tool_name) == -1) {
-          printf("[%s]: Daemon is running or some errors have occurred... \n", tool_name);
-          break;
+        pid = fork();
+        if(pid == -1) {
+          printf("[%s]: Failed to create a child process \n", tool_name);
         }
-        chdir(tool_pwd);
-        for(int index=1; index<=60; index++) {
+        else if(pid > 0) {
+          sleep(10);
+          status = swDaemon_is_alive(tool_name);
+          if(status == 1) {
+            printf("[%s]: Nice! My child is still alive \n", tool_name);
+          }
+          else if(status == 0) {
+            printf("[%s]: Oh! No... My child has passed way... \n", tool_name);
+          }
+          else {
+            printf("[%s]: Some errors occurred in the function 'swDaemon_is_alive' \n", tool_name);
+          }
+        }
+        else {
+          if(be_swDaemon(tool_name) == -1) {
+            printf("[%s]: Daemon is running or some errors have occurred... \n", tool_name);
+            break;
+          }
+          chdir(tool_pwd);
+          for(int index=1; index<=60; index++) {
 #ifdef log_switch
 #if log_switch
-          pr_swLog(SWLOG_LEVEL_INFO, "%s: write %dth log by the daemon", tool_name, index);
+            pr_swLog(SWLOG_LEVEL_INFO, "%s: write %dth log by the daemon", tool_name, index);
 #endif
 #endif
-          sleep(1);
+            sleep(1);
+          }
         }
         break;
       case '?':

@@ -17,6 +17,7 @@ static pthread_rwlock_t g_swDaemon_pid_file_lock = PTHREAD_RWLOCK_INITIALIZER;
 static char g_swDaemon_pid_file_name[512] = "swDaemon.pid";
 static char g_swDaemon_pid_file_path[512] = ".";
 static _Atomic int g_swDaemon_pid_file_switch = 1;
+static _Atomic int g_swDaemon_is_daemonized = 0;
 static int g_swDaemon_pid_fd = -1;
 
 
@@ -65,6 +66,10 @@ int be_swDaemon(const char *mName) {
   pid_t pid;
   int fd;
 
+  if(atomic_load(&g_swDaemon_is_daemonized) == 1) {
+    return -1;
+  }
+
   pid = fork();
   if(pid == -1) {
     return -1;
@@ -89,6 +94,10 @@ int be_swDaemon(const char *mName) {
   chdir("/");
   umask(0);
 
+  if(atexit(_swDaemon_cleanup) == -1) {
+    return -1;
+  }
+
   if(atomic_load(&g_swDaemon_pid_file_switch)) {
     char pid_file[512] = {0};
 
@@ -97,13 +106,12 @@ int be_swDaemon(const char *mName) {
     snprintf(pid_file, sizeof(pid_file), "%s/%s", g_swDaemon_pid_file_path, g_swDaemon_pid_file_name);
     pthread_rwlock_unlock(&g_swDaemon_pid_file_lock);
 
-    if(_write_swDaemon_pid_file(pid_file) == -1) {
+    if(swDaemon_is_alive(mName) == 1) {
       return -1;
     }
-  }
-
-  if(atexit(_swDaemon_cleanup) == -1) {
-    return -1;
+    else if(_write_swDaemon_pid_file(pid_file) == -1) {
+      return -1;
+    }
   }
 
   fd = open("/dev/null", O_RDWR);
@@ -119,6 +127,8 @@ int be_swDaemon(const char *mName) {
   dup2(fd, STDOUT_FILENO);
   dup2(fd, STDERR_FILENO);
   close(fd);
+
+  atomic_store(&g_swDaemon_is_daemonized, 1);
 
   return 0;
 }
@@ -144,6 +154,9 @@ int get_swDaemon_pid_file_path(char *mPath, size_t mSize) {
 
 int set_swDaemon_pid_file_path(const char *mPath, size_t mSize) {
   if( (mPath == NULL) || (mSize <= 0) || (mSize >= sizeof(g_swDaemon_pid_file_path)) ) {
+    return -1;
+  }
+  else if(atomic_load(&g_swDaemon_is_daemonized) == 1) {
     return -1;
   }
 

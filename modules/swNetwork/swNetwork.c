@@ -1,21 +1,36 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 
+
+#if defined(__linux__)
+#include <linux/if.h>
+
+#elif defined(__APPLE__)
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+
+#else
+#endif
+
+
 #include "swNetwork.h"
 
 
 int swNetwork_is_iface_up(const char *mName) {
-  if(mName == NULL) {
+  if( (mName == NULL) || (strlen(mName) >= IFNAMSIZ) ) {
     return -1;
   }
 
   struct ifreq iface_req;
   int fd;
 
-  snprintf(iface_req.ifr_name, IFNAMSIZ, "%s", mName);
+  strncpy(iface_req.ifr_name, mName, IFNAMSIZ - 1);
 
   fd = socket(AF_INET, SOCK_DGRAM, 0);
   if(fd == -1) {
@@ -36,4 +51,57 @@ int swNetwork_is_iface_up(const char *mName) {
   else {
     return 0;
   }
+}
+
+int get_swNetwork_mac_addr(const char *mName, uint8_t *mMac) {
+  if( (mName == NULL) || (mMac == NULL) || (strlen(mName) >= IFNAMSIZ) ) {
+    return -1;
+  }
+
+#if defined(__linux__)
+  struct ifreq iface_req;
+  int fd;
+
+  strncpy(iface_req.ifr_name, mName, IFNAMSIZ - 1);
+
+  fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if(fd == -1) {
+    return -1;
+  }
+
+  if(ioctl(fd, SIOCGIFHWADDR, &iface_req) == -1) {
+    close(fd);
+    return -1;
+  }
+  else {
+    close(fd);
+  }
+
+  memcpy(mMac, iface_req.ifr_hwaddr.sa_data, 6);
+  return 0;
+
+#elif defined(__APPLE__)
+  struct ifaddrs *iface_addr_head, *iface_addr_ptr;
+  struct sockaddr_dl *sa_dl;
+
+  if(getifaddrs(&iface_addr_head) == -1) {
+    return -1;
+  }
+
+  for(iface_addr_ptr = iface_addr_head; iface_addr_ptr != NULL; iface_addr_ptr = iface_addr_ptr->ifa_next) {
+    if( (iface_addr_ptr->ifa_addr->sa_family  == AF_LINK)
+      && (strcmp(iface_addr_ptr->ifa_name, mName) == 0) ) {
+      sa_dl = (struct sockaddr_dl*)(iface_addr_ptr->ifa_addr);
+      memcpy(mMac, LLADDR(sa_dl), 6);
+      break;
+    }
+  }
+
+  freeifaddrs(iface_addr_head);
+  return 0;
+
+#else
+  return -1;
+
+#endif
 }

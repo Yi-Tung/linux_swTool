@@ -8,6 +8,7 @@
 
 #include "swLog.h"
 #include "swDaemon.h"
+#include "swNetwork.h"
 
 #define SWTOOL_VERSION "Version 1.0"
 #define SWTOOL_LOG_FILE_NAME "./swTool.log"
@@ -19,7 +20,8 @@ void show_usage(const char *tool_name) {
            "\t-h\tShow this message\n"
            "\t-v\tShow this tool version\n"
            "\t-p\tShow the parameter of this option\n"
-           "\t-d\tExecute the daemon to do something\n");
+           "\t-d\tExecute the daemon to do something\n"
+           "\t-n\tShow the information of a network interface\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -29,11 +31,15 @@ int main(int argc, char *argv[]) {
   char *tool_name = strdup(cp_basename);
   char *tool_pwd = getcwd(NULL, 0);
 
-  const char *all_opt = "hvdp:";
+  const char *all_opt = "hvdp:n:";
   int opt_code;
 
   pid_t pid;
   int status;
+
+  char *iface_name = NULL;
+  uint8_t mac[6] = {0};
+  char ipv4[16] = {0};
 
 
   free(cp_argv0);
@@ -135,6 +141,34 @@ int main(int argc, char *argv[]) {
             sleep(1);
           }
         }
+        break;
+      case 'n':
+        iface_name = strdup(optarg);
+        status = swNetwork_is_iface_up(iface_name);
+        if(status == -1) {
+          printf("[%s]: some error occurred to get the network status\n", tool_name);
+        }
+        else if(status == 0) {
+          printf("[%s]: '%s' network interface is down\n", tool_name, iface_name);
+        }
+        else if(status == 1) {
+          printf("[%s]: '%s' network interface is up\n", tool_name, iface_name);
+
+          if(get_swNetwork_mac_addr(iface_name, mac) == 0) {
+            printf("[%s]: Mac address of '%s' network interface is '%02x:%02x:%02x:%02x:%02x:%02x'\n", tool_name, iface_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+          }
+          else {
+            printf("[%s]: some errors occurred to get the mac address\n", tool_name);
+          }
+
+          if(get_swNetwork_ipv4_addr(iface_name, ipv4, sizeof(ipv4)) == 0) {
+            printf("[%s]: IPv4 address of '%s' network interface is '%s'\n", tool_name, iface_name, ipv4);
+          }
+          else {
+            printf("[%s]: some errors occurred to get the IPv4 address\n", tool_name);
+          }
+        }
+        free(iface_name);
         break;
       case '?':
         if(optopt=='p') {

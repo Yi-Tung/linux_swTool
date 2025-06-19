@@ -132,7 +132,7 @@ int get_swNetwork_ipv4_addr(const char *mName, char *mIp, size_t mSize) {
     close(fd);
   }
 
-  sa_in = (struct sockaddr_in*)iface_req.ifr_addr;
+  sa_in = (struct sockaddr_in*)&iface_req.ifr_addr;
   inet_ntop(AF_INET, &(sa_in->sin_addr), mIp, mSize);
   return 0;
 

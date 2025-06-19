@@ -14,8 +14,8 @@
 
 static pthread_rwlock_t g_swDaemon_pid_file_lock = PTHREAD_RWLOCK_INITIALIZER;
 
-static char g_swDaemon_pid_file_name[512] = "swDaemon.pid";
-static char g_swDaemon_pid_file_path[512] = ".";
+static char g_swDaemon_pid_file_name[SW_FILE_NAME_MAX_LEN] = "swDaemon.pid";
+static char g_swDaemon_pid_file_path[SW_FILE_PATH_MAX_LEN] = ".";
 static _Atomic int g_swDaemon_pid_file_switch = 1;
 static _Atomic int g_swDaemon_is_daemonized = 0;
 static int g_swDaemon_pid_fd = -1;
@@ -53,7 +53,7 @@ static int _write_swDaemon_pid_file(const char *mName) {
 }
 
 static void _swDaemon_cleanup(void) {
-  char pid_file[512];
+  char pid_file[SW_FILE_PATH_NAME_MAX_LEN];
 
   if(g_swDaemon_pid_fd != -1) {
     close(g_swDaemon_pid_fd);
@@ -91,7 +91,9 @@ int be_swDaemon(const char *mName) {
     exit(EXIT_SUCCESS);
   }
 
-  chdir("/");
+  if(chdir("/") == -1) {
+    return -1;
+  }
   umask(0);
 
   if(atexit(_swDaemon_cleanup) == -1) {
@@ -99,7 +101,7 @@ int be_swDaemon(const char *mName) {
   }
 
   if(atomic_load(&g_swDaemon_pid_file_switch)) {
-    char pid_file[512] = {0};
+    char pid_file[SW_FILE_PATH_NAME_MAX_LEN] = {0};
 
     pthread_rwlock_wrlock(&g_swDaemon_pid_file_lock);
     snprintf(g_swDaemon_pid_file_name, sizeof(g_swDaemon_pid_file_name), "%s.pid", mName);
@@ -164,7 +166,10 @@ int set_swDaemon_pid_file_path(const char *mPath, size_t mSize) {
   int last_index = strlen(cp_mPath) - 1;
   int fd = -1;
 
-  if(cp_mPath[last_index] == '/') {
+  if(cp_mPath == NULL) {
+    return -1;
+  }
+  else if(cp_mPath[last_index] == '/') {
     cp_mPath[last_index] = '\0';
   }
 
@@ -186,7 +191,7 @@ int set_swDaemon_pid_file_path(const char *mPath, size_t mSize) {
 }
 
 int swDaemon_is_alive(const char *mName) {
-  char pid_file[512];
+  char pid_file[SW_FILE_PATH_NAME_MAX_LEN];
   char pid_buf[32];
   FILE *fp = NULL;
   pid_t pid;

@@ -17,9 +17,9 @@ static pthread_rwlock_t g_swLog_log_level_lock = PTHREAD_RWLOCK_INITIALIZER;
 static swLog_level_t g_swLog_log_level = SWLOG_LEVEL_HIDE;
 
 static pthread_rwlock_t g_swLog_file_name_lock = PTHREAD_RWLOCK_INITIALIZER;
-static char g_swLog_lock_file_path[512] = ".";
-static char g_swLog_lock_file_name[512] = ".swLog.log.lock";
-static char g_swLog_log_file_name[512] = "./swLog.log";
+static char g_swLog_lock_file_path[SW_FILE_PATH_MAX_LEN] = ".";
+static char g_swLog_lock_file_name[SW_FILE_NAME_MAX_LEN] = ".swLog.log.lock";
+static char g_swLog_log_file_name[SW_FILE_PATH_NAME_MAX_LEN] = "./swLog.log";
 static _Atomic int g_swLog_auto_lock_file_path_switch = 1;
 static _Atomic int g_swLog_store_switch = 0;
 
@@ -29,8 +29,8 @@ static _Atomic int g_swLog_pr_switch = 0;
 
 static void _store_swLog(const char *mMsg) {
   static pthread_mutex_t inner_lock = PTHREAD_MUTEX_INITIALIZER;
-  char lock_file_name[512] = {0};
-  char log_file_name[512] = {0};
+  char lock_file_name[SW_FILE_PATH_NAME_MAX_LEN] = {0};
+  char log_file_name[SW_FILE_PATH_NAME_MAX_LEN] = {0};
 
   pthread_rwlock_rdlock(&g_swLog_file_name_lock);
   snprintf(lock_file_name, sizeof(lock_file_name), "%s/%s", g_swLog_lock_file_path, g_swLog_lock_file_name);
@@ -108,7 +108,10 @@ void pr_swLog(swLog_level_t mLevel, char *mMsg, ...) {
 
     if(atomic_load(&g_swLog_pr_switch)) {
       pthread_mutex_lock(&lock);
-      write(output_fd, log_buf, strlen(log_buf));
+      if(write(output_fd, log_buf, strlen(log_buf)) == -1) {
+        fprintf(stderr, "%s[%d]: Failed to write a log to the output", __func__, __LINE__);
+        return;
+      }
       pthread_mutex_unlock(&lock);
     }
 
@@ -151,7 +154,7 @@ void set_swLog_file_name(char *mName, size_t mSize) {
   static const size_t log_len = sizeof(g_swLog_log_file_name);
   char *cp_mName, *dir_name, *base_name, *tmp;
 
-  if(mName != NULL && mSize > 1) {
+  if( (mName != NULL) && (mSize > 1) && (mSize <= SW_FILE_NAME_MAX_LEN) ) {
     if(!access(mName, F_OK | W_OK)) {
       cp_mName = strdup(mName);
       tmp = dirname(cp_mName);
@@ -181,7 +184,7 @@ int get_swLog_file_name(char *mName, size_t mSize) {
 
   size_t len = strlen(g_swLog_log_file_name) + 1;
   int ret = 0;
-  if(mSize > len) {
+  if(mSize >= len) {
     snprintf(mName, mSize, "%s", g_swLog_log_file_name);
     ret = 1;
   }
@@ -221,9 +224,11 @@ void enable_swLog_auto_lock_file_path(int mSwitch) {
 }
 
 void set_swLog_lock_file_path(char *mPath, size_t mSize) {
+  if( (mPath == NULL) || (mSize < 1) ||  (mSize >= SW_FILE_PATH_MAX_LEN) ) {
+    return;
+  }
   pthread_rwlock_wrlock(&g_swLog_file_name_lock);
 
-  static const size_t path_len = sizeof(g_swLog_lock_file_path);
   char *cp_mPath = strdup(mPath);
   int last_index = strlen(cp_mPath) - 1;
   int fd = -1;
@@ -234,7 +239,7 @@ void set_swLog_lock_file_path(char *mPath, size_t mSize) {
 
   fd = open(cp_mPath, O_CLOEXEC | O_DIRECTORY, S_IXUSR | S_IWUSR | S_IXGRP | S_IWGRP);
   if(fd != -1) {
-    snprintf(g_swLog_lock_file_path, path_len, "%s", cp_mPath);
+    snprintf(g_swLog_lock_file_path, SW_FILE_PATH_MAX_LEN, "%s", cp_mPath);
     close(fd);
   }
 
@@ -247,7 +252,7 @@ int get_swLog_lock_file_path(char *mPath, size_t mSize) {
 
   size_t len = strlen(g_swLog_lock_file_path) + 1;
   int ret = 0;
-  if(mSize > len) {
+  if(mSize >= len) {
     snprintf(mPath, mSize, "%s", g_swLog_lock_file_path);
     ret = 1;
   }

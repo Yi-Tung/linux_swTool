@@ -131,7 +131,11 @@ int main(int argc, char *argv[]) {
             printf("[%s]: Daemon is running or some errors have occurred... \n", tool_name);
             break;
           }
-          chdir(tool_pwd);
+          else if(chdir(tool_pwd) == -1) {
+            printf("[%s]: Daemon cannot change a directory... \n", tool_name);
+            break;
+          }
+
           for(int index=1; index<=60; index++) {
 #ifdef log_switch
 #if log_switch

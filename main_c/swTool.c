@@ -6,39 +6,19 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include "swCli.h"
 #include "swLog.h"
 #include "swDaemon.h"
 #include "swNetwork.h"
-
-#define PROPERTY_VALID 0x01
-#define PROPERTY_WRITE 0x02
-#define PROPERTY_DAEMON 0x04
-
 
 #define SWTOOL_MAGIC_NUM "tung"
 #define SWTOOL_VERSION "Version 1.1"
 #define SWTOOL_LOG_FILE_NAME "./swTool.log"
 
 
-typedef struct cmd_args {
-  int argc;
-  void **argv;
-} cmd_args_t;
-
-typedef struct proc_info {
-  pid_t exec_pid;
-  char *exec_name;
-  char *exec_pwd;
-
-  int (*action) (const char*, const cmd_args_t);
-  uint8_t property_flag;
-  cmd_args_t action_args;
-} proc_info_t;
-
-
-int show_usage(const char *tool_name, const cmd_args_t args) {
+int show_usage(const swCli_info_t my_cli_info) {
   printf("Usage: %s [option]\n%s\n"
-         , tool_name
+         , my_cli_info.exec_name
          , "\noption:\n"
            "\t-h\tShow this message\n"
            "\t-v\tShow this tool version\n"
@@ -48,44 +28,44 @@ int show_usage(const char *tool_name, const cmd_args_t args) {
   return 0;
 }
 
-int show_version(const char *tool_name, const cmd_args_t args) {
-  printf("%s: %s\n", tool_name, SWTOOL_VERSION);
+int show_version(const swCli_info_t my_cli_info) {
+  printf("%s: %s\n", my_cli_info.exec_name, SWTOOL_VERSION);
   return 0;
 }
 
-int show_network_info(const char *tool_name, const cmd_args_t args) {
+int show_network_info(const swCli_info_t info) {
   char *iface_name = NULL;
   uint8_t mac[6] = {0};
   char ipv4[16] = {0};
   int status;
   int ret = 0;
 
-  iface_name = args.argv[0];
+  iface_name = info.action_args.argv[0];
 
   status = swNetwork_is_iface_up(iface_name);
   if(status == -1) {
-    printf("[%s]: some error occurred to get the network status\n", tool_name);
+    printf("[%s]: some error occurred to get the network status\n", info.exec_name);
     ret = -1;
   }
   else if(status == 0) {
-    printf("[%s]: '%s' network interface is down\n", tool_name, iface_name);
+    printf("[%s]: '%s' network interface is down\n", info.exec_name, iface_name);
   }
   else if(status == 1) {
-    printf("[%s]: '%s' network interface is up\n", tool_name, iface_name);
+    printf("[%s]: '%s' network interface is up\n", info.exec_name, iface_name);
 
     if(get_swNetwork_mac_addr(iface_name, mac) == 0) {
-      printf("[%s]: Mac address of '%s' network interface is '%02x:%02x:%02x:%02x:%02x:%02x'\n", tool_name, iface_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+      printf("[%s]: Mac address of '%s' network interface is '%02x:%02x:%02x:%02x:%02x:%02x'\n", info.exec_name, iface_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
     else {
-      printf("[%s]: some errors occurred to get the mac address\n", tool_name);
+      printf("[%s]: some errors occurred to get the mac address\n", info.exec_name);
       ret = -1;
     }
 
     if(get_swNetwork_ipv4_addr(iface_name, ipv4, sizeof(ipv4)) == 0) {
-      printf("[%s]: IPv4 address of '%s' network interface is '%s'\n", tool_name, iface_name, ipv4);
+      printf("[%s]: IPv4 address of '%s' network interface is '%s'\n", info.exec_name, iface_name, ipv4);
     }
     else {
-      printf("[%s]: some errors occurred to get the IPv4 address\n", tool_name);
+      printf("[%s]: some errors occurred to get the IPv4 address\n", info.exec_name);
       ret = -1;
     }
   }
@@ -101,17 +81,13 @@ int main(int argc, char *argv[]) {
   char *cp_argv0 = strdup(argv[0]);
   char *tool_name = basename(cp_argv0);
 
-  proc_info_t *my_proc_info = malloc(sizeof(proc_info_t));
+  swCli_info_t my_cli_info;
   char buf[512] = {0};
   int index;
 
 
-  my_proc_info->exec_pid = getpid();
-  my_proc_info->exec_name = strdup(tool_name);
-  my_proc_info->exec_pwd = getcwd(NULL, 0);
-  my_proc_info->property_flag = 0;
-  my_proc_info->action_args.argc = 0;
-  my_proc_info->action_args.argv = NULL;
+  memset(&my_cli_info, 0, sizeof(swCli_info_t));
+  swCli_init(&my_cli_info, tool_name, SWTOOL_MAGIC_NUM);
 
   free(cp_argv0);
   cp_argv0 = NULL;
@@ -136,10 +112,10 @@ int main(int argc, char *argv[]) {
 #if defined(mode)
   if(!strcmp(mode, "debug")) {
     get_swLog_file_name(buf, sizeof(buf));
-    pr_swLog(SWLOG_LEVEL_INFO, "%s: swLog File Name is %s", my_proc_info->exec_name, buf);
+    pr_swLog(SWLOG_LEVEL_INFO, "%s: swLog File Name is %s", my_cli_info.exec_name, buf);
 
     get_swLog_lock_file_path(buf, sizeof(buf));
-    pr_swLog(SWLOG_LEVEL_INFO, "%s: swLog Lock File Path is %s", my_proc_info->exec_name, buf);
+    pr_swLog(SWLOG_LEVEL_INFO, "%s: swLog Lock File Path is %s", my_cli_info.exec_name, buf);
   }
 #endif
 
@@ -148,81 +124,72 @@ int main(int argc, char *argv[]) {
   while( (opt_code = getopt(argc, argv, all_opt)) != -1 ) {
     switch(opt_code) {
       case 'h':
-        my_proc_info->property_flag |= PROPERTY_VALID;
-        my_proc_info->action = show_usage;
-        my_proc_info->action_args.argc = 0;
-        my_proc_info->action_args.argv = NULL;
+        my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
+        my_cli_info.action = show_usage;
+        my_cli_info.action_args.argc = 0;
+        my_cli_info.action_args.argv = NULL;
         break;
       case 'v':
-        my_proc_info->property_flag |= PROPERTY_VALID;
-        my_proc_info->action = show_version;
-        my_proc_info->action_args.argc = 0;
-        my_proc_info->action_args.argv = NULL;
+        my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
+        my_cli_info.action = show_version;
+        my_cli_info.action_args.argc = 0;
+        my_cli_info.action_args.argv = NULL;
         break;
       case 'p':
-        if(!strcmp(optarg, SWTOOL_MAGIC_NUM)) {
-          my_proc_info->property_flag |= PROPERTY_WRITE;
+        if( (my_cli_info.magic_num != NULL)
+            && (!strcmp(optarg, my_cli_info.magic_num)) ) {
+          my_cli_info.property_flags |= SWCLI_PROPERTY_SPECIAL_PERMISSION;
         }
         else {
-          my_proc_info->property_flag &= ~PROPERTY_VALID;
+          my_cli_info.property_flags &= ~SWCLI_PROPERTY_VALID;
         }
         break;
       case 'd':
-        my_proc_info->property_flag |= PROPERTY_DAEMON;
+        my_cli_info.property_flags |= SWCLI_PROPERTY_DAEMON;
         enable_swDaemon_pid_file(1);
         set_swDaemon_pid_file_path("/tmp", sizeof("/tmp"));
 #if defined(mode)
         if(!strcmp(mode, "debug")) {
           get_swDaemon_pid_file_path(buf, sizeof(buf));
-          pr_swLog(SWLOG_LEVEL_INFO, "%s: PID File Path is %s", my_proc_info->exec_name, buf);
+          pr_swLog(SWLOG_LEVEL_INFO, "%s: PID File Path is %s", my_cli_info.exec_name, buf);
         }
 #endif
         break;
       case 'n':
-        my_proc_info->property_flag |= PROPERTY_VALID;
-        my_proc_info->action = show_network_info;
-        my_proc_info->action_args.argc = 1;
-        my_proc_info->action_args.argv = malloc(my_proc_info->action_args.argc * sizeof(void*));
-        my_proc_info->action_args.argv[0] = strdup(optarg);
+        my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
+        my_cli_info.action = show_network_info;
+        my_cli_info.action_args.argc = 1;
+        my_cli_info.action_args.argv = malloc(my_cli_info.action_args.argc * sizeof(void*));
+        my_cli_info.action_args.argv[0] = strdup(optarg);
         break;
       case '?':
       default:
-        my_proc_info->property_flag &= ~PROPERTY_VALID;
+        my_cli_info.property_flags &= ~SWCLI_PROPERTY_VALID;
         break;
     }
   }
 
 
-  if(my_proc_info->property_flag & PROPERTY_VALID) {
-    if(my_proc_info->property_flag & PROPERTY_DAEMON) {
-      if(be_swDaemon(my_proc_info->exec_name) == -1) {
+  if(my_cli_info.property_flags & SWCLI_PROPERTY_VALID) {
+    if(my_cli_info.property_flags & SWCLI_PROPERTY_DAEMON) {
+      if(be_swDaemon(my_cli_info.exec_name) == -1) {
 #if defined(log_switch) && log_switch
-        pr_swLog(SWLOG_LEVEL_ERROR, "[%s]: Daemon is running or some errors have occurred... \n", my_proc_info->exec_name);
+        pr_swLog(SWLOG_LEVEL_ERROR, "[%s]: Daemon is running or some errors have occurred... \n", my_cli_info.exec_name);
 #endif
       }
-      else if(chdir(my_proc_info->exec_pwd) == -1) {
+      else if(chdir(my_cli_info.exec_pwd) == -1) {
 #if defined(log_switch) && log_switch
-        pr_swLog(SWLOG_LEVEL_WARNING , "[%s]: Daemon cannot change a directory... \n", my_proc_info->exec_name);
+        pr_swLog(SWLOG_LEVEL_WARNING , "[%s]: Daemon cannot change a directory... \n", my_cli_info.exec_name);
 #endif
       }
     }
 
-    if(my_proc_info->action != NULL) {
-      (my_proc_info->action)(my_proc_info->exec_name, my_proc_info->action_args);
+    if(my_cli_info.action != NULL) {
+      (my_cli_info.action)(my_cli_info);
     }
   }
 
 
-  if(my_proc_info->action_args.argv != NULL) {
-    for(index=0; index<my_proc_info->action_args.argc; index++) {
-      if(my_proc_info->action_args.argv[index] != NULL) {
-        free(my_proc_info->action_args.argv[index]);
-      }
-    }
-    free(my_proc_info->action_args.argv);
-  }
-  free(my_proc_info->exec_name);
-  free(my_proc_info->exec_pwd);
-  free(my_proc_info);
+  swCli_destroy(&my_cli_info);
   return 0;
 }

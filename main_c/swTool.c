@@ -124,16 +124,26 @@ int main(int argc, char *argv[]) {
   while( (opt_code = getopt(argc, argv, all_opt)) != -1 ) {
     switch(opt_code) {
       case 'h':
-        my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
-        my_cli_info.action = show_usage;
-        my_cli_info.action_args.argc = 0;
-        my_cli_info.action_args.argv = NULL;
+        if(my_cli_info.action != NULL) {
+          my_cli_info.property_flags &= ~SWCLI_PROPERTY_VALID;
+        }
+        else {
+          my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
+          my_cli_info.action = show_usage;
+          my_cli_info.action_args.argc = 0;
+          my_cli_info.action_args.argv = NULL;
+        }
         break;
       case 'v':
-        my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
-        my_cli_info.action = show_version;
-        my_cli_info.action_args.argc = 0;
-        my_cli_info.action_args.argv = NULL;
+        if(my_cli_info.action != NULL) {
+          my_cli_info.property_flags &= ~SWCLI_PROPERTY_VALID;
+        }
+        else {
+          my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
+          my_cli_info.action = show_version;
+          my_cli_info.action_args.argc = 0;
+          my_cli_info.action_args.argv = NULL;
+        }
         break;
       case 'p':
         if( (my_cli_info.magic_num != NULL)
@@ -156,11 +166,16 @@ int main(int argc, char *argv[]) {
 #endif
         break;
       case 'n':
-        my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
-        my_cli_info.action = show_network_info;
-        my_cli_info.action_args.argc = 1;
-        my_cli_info.action_args.argv = malloc(my_cli_info.action_args.argc * sizeof(void*));
-        my_cli_info.action_args.argv[0] = strdup(optarg);
+        if(my_cli_info.action != NULL) {
+          my_cli_info.property_flags &= ~SWCLI_PROPERTY_VALID;
+        }
+        else {
+          my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
+          my_cli_info.action = show_network_info;
+          my_cli_info.action_args.argc = 1;
+          my_cli_info.action_args.argv = malloc(my_cli_info.action_args.argc * sizeof(void*));
+          my_cli_info.action_args.argv[0] = strdup(optarg);
+        }
         break;
       case '?':
       default:

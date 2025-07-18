@@ -130,8 +130,7 @@ int main(int argc, char *argv[]) {
         else {
           my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
           my_cli_info.action = show_usage;
-          my_cli_info.action_args.argc = 0;
-          my_cli_info.action_args.argv = NULL;
+          set_swCli_action_args(&my_cli_info, 0);
         }
         break;
       case 'v':
@@ -141,8 +140,7 @@ int main(int argc, char *argv[]) {
         else {
           my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
           my_cli_info.action = show_version;
-          my_cli_info.action_args.argc = 0;
-          my_cli_info.action_args.argv = NULL;
+          set_swCli_action_args(&my_cli_info, 0);
         }
         break;
       case 'p':
@@ -172,9 +170,7 @@ int main(int argc, char *argv[]) {
         else {
           my_cli_info.property_flags |= SWCLI_PROPERTY_VALID;
           my_cli_info.action = show_network_info;
-          my_cli_info.action_args.argc = 1;
-          my_cli_info.action_args.argv = malloc(my_cli_info.action_args.argc * sizeof(void*));
-          my_cli_info.action_args.argv[0] = strdup(optarg);
+          set_swCli_action_args(&my_cli_info, 1, optarg);
         }
         break;
       case '?':

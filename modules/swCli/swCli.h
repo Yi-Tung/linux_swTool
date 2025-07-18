@@ -9,7 +9,7 @@
 
 typedef struct swCli_cmd_args {
   int argc;
-  void **argv;
+  char **argv;
 } swCli_cmd_args_t;
 
 typedef struct swCli_info {
@@ -26,5 +26,7 @@ typedef struct swCli_info {
 
 int swCli_init(swCli_info_t*, const char*, const char*);
 int swCli_destroy(swCli_info_t*);
+
+int set_swCli_action_args(swCli_info_t*, const int, ...);
 
 #endif

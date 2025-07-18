@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <unistd.h>
 
 #include "swCli.h"
@@ -49,12 +50,13 @@ int swCli_destroy(swCli_info_t *mInfo) {
     mInfo->exec_pwd = NULL;
   }
 
-  mInfo->action = NULL;
-
   if(mInfo->magic_num != NULL) {
     free(mInfo->magic_num);
     mInfo->magic_num = NULL;
   }
+
+  mInfo->action = NULL;
+  mInfo->action_args.argc = 0;
 
   if(mInfo->action_args.argv != NULL) {
     int index;
@@ -68,6 +70,49 @@ int swCli_destroy(swCli_info_t *mInfo) {
 
     free(mInfo->action_args.argv);
     mInfo->action_args.argv = NULL;
+  }
+
+  return 0;
+}
+
+int set_swCli_action_args(swCli_info_t *mInfo, const int mArgc, ...) {
+  va_list ap;
+  int index;
+  char *tmp;
+
+  if( (mInfo == NULL) || (mArgc < 0) ) {
+    return -1;
+  }
+
+  if(mInfo->action_args.argv != NULL) {
+    for(index=0; index<mInfo->action_args.argc; index++) {
+      if(mInfo->action_args.argv[index] != NULL) {
+        free(mInfo->action_args.argv[index]);
+      }
+    }
+    free(mInfo->action_args.argv);
+  }
+
+  if(mArgc != 0) {
+    mInfo->action_args.argv = malloc(mArgc * sizeof(char*));
+    mInfo->action_args.argc = mArgc;
+
+    va_start(ap, mArgc);
+    for(index=0; index<mArgc; index++) {
+      tmp = va_arg(ap, char*);
+
+      if(tmp == NULL) {
+        mInfo->action_args.argv[index] = NULL;
+      }
+      else {
+        mInfo->action_args.argv[index] = strdup(tmp);
+      }
+    }
+    va_end(ap);
+  }
+  else {
+    mInfo->action_args.argv = NULL;
+    mInfo->action_args.argc = 0;
   }
 
   return 0;
